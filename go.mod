@@ -3,6 +3,7 @@ module nats-session-go
 go 1.24.2
 
 require (
+	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.45.0
 )

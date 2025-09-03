@@ -61,6 +61,9 @@ func main() {
 	defer cancel()
 
 	streamName := fmt.Sprintf("POSITION_%s", user)
+
+	// Creating a stream with all position subjects.
+	// There are a lot of options to configure the stream, like acks/guarantees, storage policy, etc.
 	stream, err := js.CreateStream(ctx, jetstream.StreamConfig{
 		Name:     streamName,
 		Subjects: []string{"example.*.position"},
@@ -70,6 +73,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a durable consumer for the stream. That means all the consumer preferences
+	// are stored on the consumer context (server side).
 	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		DeliverPolicy: jetstream.DeliverAllPolicy,
 		Durable:       "position-consumer-" + user,
@@ -79,6 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Handle keyboard events for pausing and exiting.
 	keysEvents, err := keyboard.GetKeys(10)
 	if err != nil {
 		slog.Error("error getting keys", "error", err.Error())
@@ -103,6 +109,7 @@ func main() {
 			if paused {
 				continue
 			}
+			// Fetch 1 message from the consumer.
 			msgs, _ := cons.Fetch(1)
 			var i int
 			for msg := range msgs.Messages() {

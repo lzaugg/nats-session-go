@@ -40,13 +40,21 @@ func main() {
 	subject := fmt.Sprintf("service.ping.%s", user)
 
 	slog.Info("listening to requests on " + subject)
+	// Again, the most basic way to do a request/response from the server side.
+	// It's basically just a subscribe and when a reply subject is set, it will be used to send the reply.
+
+	// For higher level use cases, check NATS micro for handling queue groups, discovery, status codes, etc automatically.
 	sub, err := nc.Subscribe(subject, func(m *nats.Msg) {
 		slog.Info("received message", "message", string(m.Data), "subject", m.Subject)
 		if m.Reply == "" {
 			slog.Warn("no reply subject. skipping reply", "subject", m.Subject)
 			return
 		}
-		nc.Publish(m.Reply, []byte("pong"))
+		err := nc.Publish(m.Reply, []byte("pong"))
+		if err != nil {
+			slog.Error("error publishing to reply subject", "error", err.Error())
+			return
+		}
 	})
 	if err != nil {
 		slog.Error("error subscribing to service.ping for subject "+subject, "error", err.Error())

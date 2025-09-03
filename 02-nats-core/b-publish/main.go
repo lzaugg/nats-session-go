@@ -53,5 +53,9 @@ func main() {
 
 	subject := fmt.Sprintf("slide.root.9.%s.html", user)
 	slog.Info("publishing to " + subject)
-	nc.Publish(subject, []byte(randomEmoji))
+	err = nc.Publish(subject, []byte(randomEmoji))
+	if err != nil {
+		slog.Error("error publishing to "+subject, "error", err.Error())
+		os.Exit(1)
+	}
 }

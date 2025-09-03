@@ -40,9 +40,15 @@ func main() {
 
 	subject := "example.*.position"
 	slog.Info("subscribing to " + subject)
-	nc.Subscribe(subject, func(m *nats.Msg) {
+	// If you want to use a channel, check ChanSubscribe, for queue groups use QueueSubscribe, etc...
+	sub, err := nc.Subscribe(subject, func(m *nats.Msg) {
 		fmt.Println("received message", "subject", m.Subject, "data", string(m.Data))
 	})
+	if err != nil {
+		slog.Error("error subscribing to "+subject, "error", err.Error())
+		os.Exit(1)
+	}
+	defer sub.Unsubscribe()
 
 	select {}
 

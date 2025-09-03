@@ -37,6 +37,8 @@ func main() {
 	}
 	defer nc.Close()
 
+	// That's the most basic way to do a request/response from the client side.
+	// It's basically just a publish with a reply subject set.
 	msg, err := nc.Request("service.ping", nil, 10*time.Second)
 	if err != nil {
 		slog.Error("error requesting service.ping", "error", err.Error())

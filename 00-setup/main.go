@@ -43,7 +43,7 @@ func main() {
 		// give fs sync some time to save the credentials properly
 		time.Sleep(1 * time.Second)
 	}
-	err = doCheck()
+	err = doCheck(*envFile)
 	if err != nil {
 		slog.Error("error checking nats connection", "error", err.Error())
 		os.Exit(1)
@@ -98,9 +98,9 @@ func doSetup(sessionToken, natsUrl string) error {
 	return nil
 }
 
-func doCheck() error {
+func doCheck(envFile string) error {
 	// read .env file
-	err := godotenv.Load(".env", "../.env")
+	err := godotenv.Load(envFile)
 	if err != nil {
 		return fmt.Errorf("error loading .env file: %w", err)
 	}

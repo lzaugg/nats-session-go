@@ -51,7 +51,7 @@ func main() {
 	// Select a random emoji
 	randomEmoji := smileEmojis[rand.Intn(len(smileEmojis))]
 
-	subject := fmt.Sprintf("slide.1.root.%s.html", user)
+	subject := fmt.Sprintf("slide.root.9.%s.html", user)
 	slog.Info("publishing to " + subject)
 	nc.Publish(subject, []byte(randomEmoji))
 }

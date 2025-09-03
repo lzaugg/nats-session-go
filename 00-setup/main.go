@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -13,22 +14,26 @@ import (
 )
 
 func main() {
-	natsUrl := flag.String("nats-url", "nats01.mye.ch", "nats url")
+	natsUrl := flag.String("nats-url", "nats01.mye.ch", "nats url (without user:pass)")
 	sessionToken := flag.String("session-token", "", "session token for getting initial credentials")
+	envFile := flag.String("env-file", ".env", "env file to save credentials to (default: .env)")
 
 	flag.Parse()
 
-	var user, server, creds, password string
-
-	slog.Info("checking status of current setup (.env file)... ")
-	err := godotenv.Load()
-	if err == nil {
-		user = os.Getenv("NATS_USER")
-		server = os.Getenv("NATS_SERVER")
-		creds = os.Getenv("NATS_CREDS_FILE")
+	if *sessionToken == "" {
+		slog.Error("session token is required")
+		os.Exit(1)
 	}
 
-	if user == "" || server == "" {
+	var server string
+
+	slog.Info("checking status of current setup (.env file)... ")
+	err := godotenv.Load(*envFile)
+	if err == nil {
+		server = os.Getenv("NATS_SERVER")
+	}
+
+	if server == "" {
 		slog.Info("looks like we don't have any credentials or a gopher seat for this session yet, let's change that")
 		err = doSetup(*sessionToken, *natsUrl)
 		if err != nil {
@@ -46,11 +51,17 @@ func main() {
 }
 
 func doSetup(sessionToken, natsUrl string) error {
-	nc, err := nats.Connect(natsUrl,
-		//nats.Token(sessionToken),
-		nats.Pass
-		nats.CustomInboxPrefix("_INBOX_NEW_GOPHER."),
-	)
+	// check if natsUrl already contains the schema nats://
+	if strings.HasPrefix(natsUrl, "nats://") {
+		// URL already has schema, add user:pass after the schema
+		natsUrl = fmt.Sprintf("nats://gopher:%s@%s", sessionToken, strings.TrimPrefix(natsUrl, "nats://"))
+	} else {
+		// URL doesn't have schema, add it along with user:pass
+		natsUrl = fmt.Sprintf("nats://gopher:%s@%s", sessionToken, natsUrl)
+	}
+
+	nc, err := nats.Connect(natsUrl) //nats.CustomInboxPrefix("_INBOX_NEW_GOPHER."),
+
 	if err != nil {
 		return fmt.Errorf("error connecting to nats: %w", err)
 	}
@@ -58,9 +69,9 @@ func doSetup(sessionToken, natsUrl string) error {
 
 	// get seat number
 	slog.Info("requesting a gopher seat (credentials)...")
-	nkeyCredsMsg, err := nc.Request("service.new-gopher", nil, 10*time.Second)
+	nextGopherMsg, err := nc.Request("service.next-gopher", nil, 10*time.Second)
 	if err != nil {
-		return fmt.Errorf("error getting new gopher credentials (nkey) for session-token %s: %w", sessionToken, err)
+		return fmt.Errorf("error getting new gopher user name for session %s: %w", sessionToken, err)
 	}
 
 	// save nkey to file
@@ -70,49 +81,37 @@ func doSetup(sessionToken, natsUrl string) error {
 		return fmt.Errorf("error getting current directory: %w", err)
 	}
 
-	user := nkeyCredsMsg.Header.Get("user")
-	if user == "" {
-		return fmt.Errorf("no user header found in nkey credentials message")
-	}
-
-	// save nkey to file
-	credsFile := filepath.Join(dir, ".creds")
-	err = os.WriteFile(credsFile, nkeyCredsMsg.Data, 0600)
-	if err != nil {
-		return fmt.Errorf("error saving nkey to file: %w", err)
-	}
+	user := string(nextGopherMsg.Data)
 
 	// save env file
 	envFile := filepath.Join(dir, ".env")
-	err = os.WriteFile(envFile, []byte(fmt.Sprintf("NATS_USER=%s\nNATS_SERVER=%s\nNATS_CREDS_FILE=%s", user, natsUrl, credsFile)), 0600)
+	err = os.WriteFile(envFile, []byte(fmt.Sprintf("NATS_USER=%s\nNATS_SERVER=%s", user, natsUrl)), 0600)
 	if err != nil {
 		return fmt.Errorf("error saving env file: %w", err)
 	}
 	slog.Info("---")
 	slog.Info("welcome aboard", "user", user)
 	slog.Info("---")
-	slog.Info("credentials saved to file", "file", credsFile)
 	slog.Info("env file saved to file", "file", envFile)
-	slog.Info("use the credentials for all further interactions with the given NATS server")
+	slog.Info("use the .env file for all further interactions with the given NATS server")
 
 	return nil
 }
 
 func doCheck() error {
 	// read .env file
-	err := godotenv.Load()
+	err := godotenv.Load(".env", "../.env")
 	if err != nil {
 		return fmt.Errorf("error loading .env file: %w", err)
 	}
 
 	user := os.Getenv("NATS_USER")
 	server := os.Getenv("NATS_SERVER")
-	creds := os.Getenv("NATS_CREDS_FILE")
 
-	if user == "" || server == "" || creds == "" {
-		return fmt.Errorf("NATS_USER, NATS_SERVER, and NATS_CREDS_FILE must be set in .env file")
+	if user == "" || server == "" {
+		return fmt.Errorf("NATS_USER and NATS_SERVER must be set in .env file")
 	}
-	nc, err := nats.Connect(server, nats.UserCredentials(creds))
+	nc, err := nats.Connect(server)
 	if err != nil {
 		return fmt.Errorf("error connecting to nats: %w", err)
 	}
@@ -123,7 +122,7 @@ func doCheck() error {
 		return fmt.Errorf("error pinging nats: %w", err)
 	}
 	slog.Info("====")
-	slog.Info("setup finished: everything looks good")
+	slog.Info("you're all set up!", "user", user)
 	slog.Info("====")
 
 	return nil

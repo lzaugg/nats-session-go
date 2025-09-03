@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -10,9 +12,12 @@ import (
 
 func main() {
 
-	var user, server, creds string
+	envFile := flag.String("env-file", ".env", "env file to load credentials from (default: .env)")
+	flag.Parse()
 
-	err := godotenv.Load()
+	var user, server string
+
+	err := godotenv.Load(*envFile)
 	if err != nil {
 		slog.Error("error loading .env file (did you run 00-setup?)", "error", err.Error())
 		os.Exit(1)
@@ -20,22 +25,23 @@ func main() {
 
 	user = os.Getenv("NATS_USER")
 	server = os.Getenv("NATS_SERVER")
-	creds = os.Getenv("NATS_CREDS_FILE")
 
-	if user == "" || server == "" || creds == "" {
+	if user == "" || server == "" {
 		slog.Error("no credentials, server or user info found in .env file")
 		os.Exit(1)
 	}
 
-	nc, err := nats.Connect(server, nats.UserCredentials(creds))
+	nc, err := nats.Connect(server)
 	if err != nil {
 		slog.Error("error connecting to nats", "error", err.Error())
 		os.Exit(1)
 	}
 	defer nc.Close()
 
-	nc.Subscribe("example.vehicle-0.position", func(m *nats.Msg) {
-		slog.Info("received message", "message", string(m.Data))
+	subject := "example.*.position"
+	slog.Info("subscribing to " + subject)
+	nc.Subscribe(subject, func(m *nats.Msg) {
+		fmt.Println("received message", "subject", m.Subject, "data", string(m.Data))
 	})
 
 	select {}

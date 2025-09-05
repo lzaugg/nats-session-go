@@ -62,10 +62,12 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	streamName := fmt.Sprintf("POSITION_%s", user)
+	streamName := "POSITION"
 
 	// Creating a stream with all position subjects.
 	// There are a lot of options to configure the stream, like acks/guarantees, storage policy, etc.
+	// ATTENTION: the subject must not overlap with another stream configuration (means a subject can be at most in one stream)!
+	// The call is idempotent as long as the configuration stays the same. If the configuration changes, the call will return an error.
 	stream, err := js.CreateStream(ctx, jetstream.StreamConfig{
 		Name:     streamName,
 		Subjects: []string{"example.*.position"},

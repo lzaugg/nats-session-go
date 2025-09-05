@@ -55,6 +55,7 @@ func run() error {
 	// Select a random emoji
 	randomEmoji := smileEmojis[rand.Intn(len(smileEmojis))]
 
+	// This example makes only sense if someone is listening to the subject and displaying something on the screen.
 	subject := fmt.Sprintf("slide.root.9.%s.html", user)
 	slog.Info("publishing to " + subject)
 	err = nc.Publish(subject, []byte(randomEmoji))

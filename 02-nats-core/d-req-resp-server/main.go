@@ -11,6 +11,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		slog.Error("error running", "error", err.Error())
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	envFile := flag.String("env-file", ".env", "env file to load credentials from (default: .env)")
 	flag.Parse()
 
@@ -18,22 +26,19 @@ func main() {
 
 	err := godotenv.Load(*envFile)
 	if err != nil {
-		slog.Error("error loading .env file (did you run 00-setup?)", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error loading .env file (did you run 00-setup?): %w", err)
 	}
 
 	user = os.Getenv("NATS_USER")
 	server = os.Getenv("NATS_SERVER")
 
 	if user == "" || server == "" {
-		slog.Error("no credentials, server or user info found in .env file")
-		os.Exit(1)
+		return fmt.Errorf("no credentials, server or user info found in .env file")
 	}
 
 	nc, err := nats.Connect(server)
 	if err != nil {
-		slog.Error("error connecting to nats", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error connecting to nats: %w", err)
 	}
 	defer nc.Close()
 
@@ -57,8 +62,7 @@ func main() {
 		}
 	})
 	if err != nil {
-		slog.Error("error subscribing to service.ping for subject "+subject, "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error subscribing to service.ping for subject %s: %w", subject, err)
 	}
 	defer sub.Unsubscribe()
 

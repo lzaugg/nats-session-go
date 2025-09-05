@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -11,6 +12,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		slog.Error("error running", "error", err.Error())
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	envFile := flag.String("env-file", ".env", "env file to load credentials from (default: .env)")
 	flag.Parse()
 
@@ -18,22 +27,19 @@ func main() {
 
 	err := godotenv.Load(*envFile)
 	if err != nil {
-		slog.Error("error loading .env file (did you run 00-setup?)", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error loading .env file (did you run 00-setup?): %w", err)
 	}
 
 	user = os.Getenv("NATS_USER")
 	server = os.Getenv("NATS_SERVER")
 
 	if user == "" || server == "" {
-		slog.Error("no credentials, server or user info found in .env file")
-		os.Exit(1)
+		return fmt.Errorf("no credentials, server or user info found in .env file")
 	}
 
 	nc, err := nats.Connect(server)
 	if err != nil {
-		slog.Error("error connecting to nats", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error connecting to nats: %w", err)
 	}
 	defer nc.Close()
 
@@ -41,9 +47,10 @@ func main() {
 	// It's basically just a publish with a reply subject set.
 	msg, err := nc.Request("service.ping", nil, 10*time.Second)
 	if err != nil {
-		slog.Error("error requesting service.ping", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error requesting service.ping: %w", err)
 	}
 
 	slog.Info("received message", "message", string(msg.Data))
+
+	return nil
 }

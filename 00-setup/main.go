@@ -14,6 +14,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		slog.Error("error running", "error", err.Error())
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	natsUrl := flag.String("nats-url", "nats01.mye.ch", "nats url (without user:pass)")
 	sessionToken := flag.String("session-token", "", "session token for getting initial credentials")
 	envFile := flag.String("env-file", ".env", "env file to save credentials to (default: .env)")
@@ -21,8 +29,7 @@ func main() {
 	flag.Parse()
 
 	if *sessionToken == "" {
-		slog.Error("session token is required")
-		os.Exit(1)
+		return fmt.Errorf("session token is required")
 	}
 
 	var server string
@@ -37,17 +44,16 @@ func main() {
 		slog.Info("looks like we don't have any credentials or a gopher seat for this session yet, let's change that")
 		err = doSetup(*sessionToken, *natsUrl)
 		if err != nil {
-			slog.Error("error setting up nats connection (did you use the correct session token?)", "error", err.Error())
-			os.Exit(1)
+			return fmt.Errorf("error setting up nats connection (did you use the correct session token?): %w", err)
 		}
 		// give fs sync some time to save the credentials properly
 		time.Sleep(1 * time.Second)
 	}
 	err = doCheck(*envFile)
 	if err != nil {
-		slog.Error("error checking nats connection", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error checking nats connection: %w", err)
 	}
+	return nil
 }
 
 func doSetup(sessionToken, natsUrl string) error {

@@ -15,7 +15,14 @@ import (
 )
 
 func main() {
+	err := run()
+	if err != nil {
+		slog.Error("error running", "error", err.Error())
+		os.Exit(1)
+	}
+}
 
+func run() error {
 	envFile := flag.String("env-file", ".env", "env file to load credentials from (default: .env)")
 	flag.Parse()
 
@@ -23,39 +30,34 @@ func main() {
 
 	err := godotenv.Load(*envFile)
 	if err != nil {
-		slog.Error("error loading .env file (did you run 00-setup?)", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error loading .env file (did you run 00-setup?): %w", err)
 	}
 
 	user = os.Getenv("NATS_USER")
 	server = os.Getenv("NATS_SERVER")
 
 	if user == "" || server == "" {
-		slog.Error("no credentials, server or user info found in .env file")
-		os.Exit(1)
+		return fmt.Errorf("no credentials, server or user info found in .env file")
 	}
 
 	nc, err := nats.Connect(server)
 	if err != nil {
-		slog.Error("error connecting to nats", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error connecting to nats: %w", err)
 	}
 	defer nc.Close()
 
+	// old way to get jetstream context (kind of deprecated)
 	/*
-		// old way to get jetstream context (kind of deprecated)
 		_, err = nc.JetStream()
 		if err != nil {
-			slog.Error("error getting jetstream context", "error", err.Error())
-			os.Exit(1)
+			return fmt.Errorf("error getting jetstream context: %w", err)
 		}
 	*/
 
-	// new way
+	// new way to get jetstream context
 	js, err := jetstream.New(nc)
 	if err != nil {
-		slog.Error("error getting jetstream context", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error getting jetstream context: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -69,26 +71,23 @@ func main() {
 		Subjects: []string{"example.*.position"},
 	})
 	if err != nil {
-		slog.Error("error creating stream", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error creating stream: %w", err)
 	}
 
-	// Create a durable consumer for the stream. That means all the consumer preferences
+	// Create a durable consumer for the stream. All the consumer preferences
 	// are stored on the consumer context (server side).
 	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		DeliverPolicy: jetstream.DeliverAllPolicy,
 		Durable:       "position-consumer-" + user,
 	})
 	if err != nil {
-		slog.Error("error creating consumer", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error creating consumer: %w", err)
 	}
 
 	// Handle keyboard events for pausing and exiting.
 	keysEvents, err := keyboard.GetKeys(10)
 	if err != nil {
-		slog.Error("error getting keys", "error", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("error getting keys: %w", err)
 	}
 	defer keyboard.Close()
 
@@ -99,7 +98,7 @@ func main() {
 		case key := <-keysEvents:
 			if key.Key == keyboard.KeyCtrlC {
 				slog.Info("ctrl+c pressed, exiting")
-				os.Exit(0)
+				return nil
 			}
 			if key.Rune == 'p' || key.Rune == 'P' {
 				slog.Info("handle key event", "paused", paused)
@@ -114,7 +113,7 @@ func main() {
 			var i int
 			for msg := range msgs.Messages() {
 				msg.Ack()
-				metadata, _ := msg.Metadata()
+				metadata, err := msg.Metadata()
 				if err != nil {
 					slog.Error("error getting metadata", "error", err.Error())
 					continue

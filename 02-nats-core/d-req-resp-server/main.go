@@ -44,7 +44,9 @@ func run() error {
 
 	subject := fmt.Sprintf("service.ping.%s", user)
 
-	slog.Info("listening to requests on " + subject)
+	slog.Info("listening to requests", "subject", subject)
+	slog.Info("adapt the previous example (c-req-resp-client) to use the correct subject for the request")
+
 	// Again, the most basic way to do a request/response from the server side.
 	// It's basically just a subscribe and when a reply subject is set, it will be used to send the reply.
 
